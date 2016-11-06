@@ -1,0 +1,65 @@
+{
+   "columns": [
+      {
+         "key": "price",
+         "type": "numeric",
+         "goal": "min",
+         "is_objective": true,
+         "range": {
+            "low": 0,
+            "high": 200
+         }
+      },
+      {
+         "key": "screen",
+         "type": "numeric",
+         "goal": "max",
+         "is_objective": true
+      },
+      {
+         "key": "ram",
+         "type": "numeric",
+         "goal": "max",
+         "is_objective": false
+      }
+   ],
+   "options": [
+      {
+         "key": "1",
+         "name": "GalaxyS4",
+         "values": {
+            "price": 150,
+            "screen": 5,
+            "ram": 45
+         }
+      },
+      {
+         "key": "2",
+         "name": "iPhone5",
+         "values": {
+            "price": 199,
+            "screen": 4,
+            "ram": 40
+         }
+      },
+      {
+         "key": "3",
+         "name": "LGOptimusG",
+         "values": {
+            "price": 80,
+            "screen": 5,
+            "ram": 40
+         }
+      },
+      {
+         "key": "4",
+         "name": "Huaweip9",
+         "values": {
+            "price": 140,
+            "screen": 5,
+            "ram": 45
+         }
+      }
+   ],
+   "subject": "phones"
+}

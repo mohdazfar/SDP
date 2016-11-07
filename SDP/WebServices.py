@@ -5,6 +5,7 @@ import pandas as pd
 from dateutil import parser
 from datetime import datetime
 from datetime import timedelta
+from WatsonCloud import WatsonCloud
 
 class WebServices:
 
@@ -34,6 +35,7 @@ class WebServices:
         params = {'request':{'slice': [flightInfo],'passengers':{'adultCount':1},'solutions':possibleflights,'refundable':False}}
         request = requests.post(url, data=json.dumps(params),  headers=headers)
         data = json.loads(request.text)
+        print(data)
         options = data['trips']['tripOption']
         carriers = data['trips']['data']['carrier']
         carrierInfo = {}
@@ -44,7 +46,6 @@ class WebServices:
         airports= data['trips']['data']['airport']
         for airport in airports:
             airportName[airport['code']]=airport['name']
-
 
         jsonResult ={}
         routeNumber = 0
@@ -61,12 +62,6 @@ class WebServices:
                     carrierCode = singleFlight['flight']['carrier']
 
                     for leg in singleFlight['leg']:
-                        # print(flightNumber)
-                        # print(carrierCode)
-                        # print(leg['departureTime'])
-                        # print(leg['arrivalTime'])
-                        # print(leg['origin'])
-                        # print(leg['destination'])
                         singleFlightInfo.append( {'FlightNumber':flightNumber,'Airline':carrierInfo[carrierCode],
                                                  'DepartureTime': leg['departureTime'], 'ArrivalTime':leg['arrivalTime'],
                                                  'OriginCity':airportName[leg['origin']], 'DestinationCity':airportName[leg['destination']]})
@@ -144,58 +139,80 @@ class WebServices:
         return cityAbbreviation
 
 
-data = open('FlightsAndHotelsData.json', 'r')
-data = json.load(data)
-flightPriceData = data['FlightData']
-flightKeys = list(flightPriceData.keys())
-flightsData = {}
-for i in range(len(flightPriceData)):
-    price = flightPriceData[flightKeys[i]][0]['Price']
-    flightsData.update({flightKeys[i] : float(price)})
-print(flightsData)
+    def SetUpDataForTradeOffAnalytics(self, data):
+        # data = open('FlightsAndHotelsData.json', 'r', encoding='utf-8')
+        # print(data.read())
+        data = json.loads(data)
+        print(data)
+        flightPriceData = data['FlightData']
+        flightKeys = list(flightPriceData.keys())
+        flightsData = {}
+        for i in range(len(flightPriceData)):
+            price = flightPriceData[flightKeys[i]][0]['Price']
+            flightsData.update({flightKeys[i] : float(price)})
 
-hotelsPriceData = data['HotelsData']
-hotelsKeys = list(hotelsPriceData.keys())
-hotelsData = {}
-hotelsRankingData = []
+        hotelsPriceData = data['HotelsData']
+        hotelsKeys = list(hotelsPriceData.keys())
+        hotelsData = {}
+        hotelsRankingData = []
 
-for i in range (len(hotelsKeys)):
-    prices = hotelsPriceData[hotelsKeys[i]]['Price_Per_Day']
-    rankingScore = hotelsPriceData[hotelsKeys[i]]['Hotel_Ranking']
-    hotelsData.update({hotelsKeys[i]:[prices, rankingScore]})
-    hotelsRankingData.append(rankingScore)
+        for j in range (len(hotelsKeys)):
+            prices = hotelsPriceData[hotelsKeys[j]]['Price_Per_Day']
+            rankingScore = hotelsPriceData[hotelsKeys[j]]['Hotel_Ranking']
+            hotelsData.update({hotelsKeys[j]:[prices, rankingScore]})
+            hotelsRankingData.append(rankingScore)
 
-print(hotelsData)
-print(hotelsRankingData)
+        routes = list(flightsData.keys())
+        hotelsAndRankings = list(hotelsData.keys())
 
-# dataForTradeOffAnalytics = []
-# for i in flightsData:
-#     for j in hotelsData:
-#         for k in hotelsRankingData:
-#             if(i == None or j == None or k == None or float(i) <= 0 or float(j) <= 0 or float(k) <= 0 ): continue
-#             dataForTradeOffAnalytics.append([i , j , k])
-#
-# print(dataForTradeOffAnalytics)
+        dataForTradeOff = []
+        index = 0
+        for i in routes:
+            for j in hotelsAndRankings:
+                if (flightsData[i] == None or hotelsData[j][0] == None or hotelsData[j][1] == None or
+                            flightsData[i] <= 0.0 or hotelsData[j][0]  <= 0.0 or hotelsData[j][1] <= 0.0 ): continue
+                index += 1
+                concatenatedKey = i + '-' + j
+                concatenatedValue = {'flightPrice': flightsData[i], 'hotelPrice': hotelsData[j][0], 'hotelRanking': hotelsData[j][1]}
+                dataForTradeOff.append({'key': str(index),'name': concatenatedKey ,'values':concatenatedValue})
 
-#
-# def Main():
-#     service = WebServices()
-#     origin ='BER'
-#     destination = 'PAR'
-#     departureDate = '2016-12-15'
-#     possibleFlights = 10
-#     numberOfDaysToVisit = 3
-#     hotelCheckInDate = datetime.strptime(departureDate,'%Y-%m-%d').date()
-#     hotelCheckInDate  = hotelCheckInDate + timedelta(days = 1) # Currently using logic of a 1 day ahead booking of hotel
-#
-#     flightData = service.getFlightData(origin, destination,departureDate, possibleFlights)
-#     cityName = service.cityCodeToCityName(destination)
-#     hotelsData = service.getHotelData(cityName, hotelCheckInDate, numberOfDaysToVisit)
-#     mergeData = {'FlightData':flightData, 'HotelsData':hotelsData}
-#     writeToFile = open('FlightsAndHotelsData.json', 'w')
-#     json.dump(mergeData,writeToFile)
-#
-#
-# if __name__ == '__main__':
-#     Main()
+        columnsInfo = [{'key':'flightPrice', 'type': 'numeric', 'goal':'min', 'is_objective': True, 'range':{'low':0,'high':2000}},
+                       {'key':'hotelPrice', 'type': 'numeric', 'goal':'min', 'is_objective': True, 'range':{'low':0,'high':500}},
+                       {'key':'hotelRanking', 'type': 'numeric', 'goal':'max', 'is_objective': False}]
+        #
+
+        completeData = {'columns': columnsInfo, 'options':dataForTradeOff}
+        # completeData = json.dumps(completeData, ensure_ascii=False)
+
+        # writeToFile = open('DataFile.json', 'w')
+        dataToJson = json.dumps(completeData,ensure_ascii=False)
+        return dataToJson
+
+
+def Main():
+    service = WebServices()
+    origin ='BER'
+    destination = 'PAR'
+    departureDate = '2016-12-15'
+    possibleFlights = 10
+    numberOfDaysToVisit = 3
+    hotelCheckInDate = datetime.strptime(departureDate,'%Y-%m-%d').date()
+    hotelCheckInDate  = hotelCheckInDate + timedelta(days = 1) # Currently using logic of a 1 day ahead booking of hotel
+
+    flightData = service.getFlightData(origin, destination,departureDate, possibleFlights)
+    cityName = service.cityCodeToCityName(destination)
+    hotelsData = service.getHotelData(cityName, hotelCheckInDate, numberOfDaysToVisit)
+    mergeData = {'FlightData':flightData, 'HotelsData':hotelsData}
+    writeToFile = open('FlightsAndHotelsData.json', 'w')
+    json.dump(mergeData,writeToFile)
+
+    dataToJson = json.dumps(mergeData, ensure_ascii=False)
+    dataForTradeOff = service.SetUpDataForTradeOffAnalytics(dataToJson)
+
+    watson = WatsonCloud()
+    tradeOffResult = watson.getTradeOffAnalyticsResult(dataForTradeOff)
+    return tradeOffResult
+
+if __name__ == '__main__':
+    Main()
 
